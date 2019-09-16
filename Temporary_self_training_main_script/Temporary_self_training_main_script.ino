@@ -1,4 +1,4 @@
-// This is a test comment
+
 // importing libraries
 #include <NewPing.h>
 
@@ -168,7 +168,7 @@ void setup() {
   pinMode(start_button, INPUT);
   // set up the LCD's number of columns and rows:
   lcd.begin(16, 2);
-
+  Serial.begin(9600);
 }
 
 
@@ -178,8 +178,8 @@ void loop() {
   myFile = SD.open("test.txt");
   // DEFINITION OF VARIABLES SECTION
 
-  while (button_state != true) {
 
+  while (button_state != true) {
     int start = digitalRead(start_button);  // reading the state of the green button
     byte switchState = digitalRead (switchPin); // reading the state of the white button
     byte switchState_yellow = digitalRead (switch_Pin_yellow); // reading the state of the yellow button
@@ -189,22 +189,19 @@ void loop() {
     aState1 = digitalRead(outputA1); // Reads the "current" state of the outputA1
     aState2 = digitalRead(outputA2); // Reads the "current" state of the outputA2
     aState3 = digitalRead(outputA3); // Reads the "current" state of the outputA3
-    unsigned int distance = sonar.ping_cm(); // proximity sensor
-    val1 = digitalRead(inPin1);   // current state of pushbotton 1
-    val2 = digitalRead(inPin2);   // current state of pushbotton 2
-    val3 = digitalRead(inPin3);   // current state of pushbotton 3
+
 
     // Choosing if we want to deliver the reward on the proxomity
     if (switchState == HIGH) {
       oldSwitchState_door =  switchState;
       reward_on_proximity = !reward_on_proximity;   // toggle the variable
-      if (reward_on_proximity == false) {
+      if (reward_on_proximity == 0) {
         lcd.clear();
         rew_string = String("No reward on prox");
         reward_on_proximity_flag = false;
         lcd.setCursor(0, 1);
 
-      } else if (reward_on_proximity == true) {
+      } else if (reward_on_proximity == 1) {
         lcd.clear();
         rew_string = String("Reward on prox");
         reward_on_proximity_flag = true;
@@ -323,7 +320,7 @@ void loop() {
         counter3 = counter3 - 100;
       }
       lcd.clear();
-      lcd.print("Prox. time:  ");
+      lcd.print("Prox. time: ");
       lcd.print(counter3);
 
     }
@@ -347,6 +344,15 @@ void loop() {
     }
 
   }
+
+
+
+  lcd.clear();
+  lcd.setCursor(0, 1);
+  lcd.print("Waiting for ");
+  lcd.print(monkey);
+  delay(1000);
+  lcd.clear();
 
   ///////////////////////////////////////////////////////////////////////////////// HERE THE CODE FOR THE EXPERIMENT BEGINS ///////////////////////////////////////////////////////////////////////////////////////////
   // code for the experiment
@@ -418,15 +424,16 @@ void loop() {
     int var = 0;
     lcd.clear();
 
-  } 
+  }
   while (door_closure_flag == true) {
+    Serial.print("you entered the section with the dc motor activated"); // Print a message of "Temp: "to the serial montior
     unsigned int distance = sonar.ping_cm(); // proximity sensor
     val1 = digitalRead(inPin1);   // current state of pushbotton 1
     val2 = digitalRead(inPin2);   // current state of pushbotton 2
     val3 = digitalRead(inPin3);   // current state of pushbotton 3
 
     if (distance <= proximity_threshold && distance > 0 ) {
-
+      Serial.print("you entered the section where the monkey is near to the proximity sensor");
       while (var < 10) {
         var++;
         if (distance > proximity_threshold) {
@@ -436,53 +443,67 @@ void loop() {
         delay(prox_time / 10);
       }
 
-
+      Serial.print("the monkey is in the right position from a sufficient amount of time: let's start with the door closure");
       if (digitalRead(reedPin) == HIGH && distance <= proximity_threshold) {
+        Serial.print("if the monkey is in the right position and the reed is not reached, keep moving the door");
         distance_counter++;
         analogWrite(enA, 100);
         digitalWrite(IN1, HIGH);
         digitalWrite(IN2, LOW);
+
       }
 
       else if (digitalRead(reedPin) == LOW && (distance <= proximity_threshold)) {
-        delay(reward_duration);
+        // the monkey is still here when the motor has reached the reed module, so I stop the motor and
+        // give the reward
+        Serial.print("the monkey is still here when the motor has reached the reed module, so I stop the motor and give the reward");
         analogWrite(enA, 0);
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, LOW);
+        digitalWrite (ledPin, HIGH);
+        delay(reward_duration);
+        digitalWrite (ledPin, LOW);
 
-        while (reward_state == false) {
 
-
+        while (distance <= proximity_threshold) {
+          // now the monkey is in the right position, and can start to press the buttons
+          Serial.print("now the monkey is in the right position, and can start to press the buttons");
           // if button 1 is pressed, reward is delivered
           if (val1 == HIGH && val2 == LOW && val3 == LOW) {
+            Serial.print("button 1 pressed");
             digitalWrite (ledPin, HIGH);
             delay (reward_duration);
             reward_state = true;
+            digitalWrite (ledPin, LOW);
 
-            break;
           }
 
           // if button 2 is pressed, reward is delivered
           else if (val1 == LOW && val2 == HIGH && val3 == LOW) {
+            Serial.print("button 2 pressed");
             digitalWrite (ledPin, HIGH);
             delay (reward_duration);
             reward_state = true;
+            digitalWrite (ledPin, LOW);
 
-            break;
           }
           // if button 3 is pressed, reward is delivered
           else if (val1 == LOW && val2 == LOW && val3 == HIGH) {
+            Serial.print("button 3 pressed");
             digitalWrite (ledPin, HIGH);
             delay (reward_duration);
 
             reward_state = true;
+            digitalWrite (ledPin, LOW);
 
-            break;
           }
+          reward_state = false;
+
         }
 
 
-      } else if (digitalRead(reedPin) == LOW && (distance > proximity_threshold)) {
+      } else if ((distance > proximity_threshold)) {
+        Serial.print("coming back to the start position with the door");
         delay (50);
         analogWrite(enA, 200);
         digitalWrite(IN1, LOW);
@@ -505,12 +526,12 @@ void loop() {
 
       // idle flag
       reward_state = false;
-      int var = 0; 
+      int var = 0;
       lcd.clear();
     }
   }
   // idle flag
-      reward_state = false;
-      int var = 0; 
-      lcd.clear();
+  reward_state = false;
+  int var = 0;
+  lcd.clear();
 }
