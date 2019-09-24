@@ -126,6 +126,9 @@ File myFile;
 // distance counter
 int distance_counter;
 
+// flag for the monkey presence
+int monkey_already_in = false;
+
 
 // definint setup
 void setup() {
@@ -371,6 +374,8 @@ void loop() {
 
       // if button 1 is pressed, reward is delivered
       if (val1 == HIGH && val2 == LOW && val3 == LOW) {
+        Serial.println("button1");
+        Serial.println(digitalRead(inPin1));
         digitalWrite (ledPin, HIGH);
         delay (reward_duration);
         reward_state = true;
@@ -380,6 +385,7 @@ void loop() {
 
       // if button 2 is pressed, reward is delivered
       else if (val1 == LOW && val2 == HIGH && val3 == LOW) {
+        Serial.println("button2");
         digitalWrite (ledPin, HIGH);
         delay (reward_duration);
         reward_state = true;
@@ -388,6 +394,7 @@ void loop() {
       }
       // if button 3 is pressed, reward is delivered
       else if (val1 == LOW && val2 == LOW && val3 == HIGH) {
+        Serial.println("button3");
         digitalWrite (ledPin, HIGH);
         delay (reward_duration);
 
@@ -426,14 +433,13 @@ void loop() {
 
   }
   while (door_closure_flag == true) {
-    Serial.print("you entered the section with the dc motor activated"); // Print a message of "Temp: "to the serial montior
     unsigned int distance = sonar.ping_cm(); // proximity sensor
     val1 = digitalRead(inPin1);   // current state of pushbotton 1
     val2 = digitalRead(inPin2);   // current state of pushbotton 2
     val3 = digitalRead(inPin3);   // current state of pushbotton 3
 
     if (distance <= proximity_threshold && distance > 0 ) {
-      Serial.print("you entered the section where the monkey is near to the proximity sensor");
+      Serial.println("you entered the section where the monkey is near to the proximity sensor");
       while (var < 10) {
         var++;
         if (distance > proximity_threshold) {
@@ -443,73 +449,107 @@ void loop() {
         delay(prox_time / 10);
       }
 
-      Serial.print("the monkey is in the right position from a sufficient amount of time: let's start with the door closure");
+      Serial.println("the monkey is in the right position from a sufficient amount of time: let's start with the door closure");
       if (digitalRead(reedPin) == HIGH && distance <= proximity_threshold) {
-        Serial.print("if the monkey is in the right position and the reed is not reached, keep moving the door");
+        Serial.println("if the monkey is in the right position and the reed is not reached, keep moving the door");
+        Serial.println (digitalRead(reedPin));
         distance_counter++;
         analogWrite(enA, 100);
-        digitalWrite(IN1, HIGH);
-        digitalWrite(IN2, LOW);
+        digitalWrite(IN1, LOW);
+        digitalWrite(IN2, HIGH);
 
       }
 
       else if (digitalRead(reedPin) == LOW && (distance <= proximity_threshold)) {
         // the monkey is still here when the motor has reached the reed module, so I stop the motor and
         // give the reward
-        Serial.print("the monkey is still here when the motor has reached the reed module, so I stop the motor and give the reward");
         analogWrite(enA, 0);
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, LOW);
         digitalWrite (ledPin, HIGH);
         delay(reward_duration);
         digitalWrite (ledPin, LOW);
+        monkey_already_in = true;
 
 
-        while (distance <= proximity_threshold) {
-          // now the monkey is in the right position, and can start to press the buttons
-          Serial.print("now the monkey is in the right position, and can start to press the buttons");
-          // if button 1 is pressed, reward is delivered
-          if (val1 == HIGH && val2 == LOW && val3 == LOW) {
-            Serial.print("button 1 pressed");
-            digitalWrite (ledPin, HIGH);
-            delay (reward_duration);
-            reward_state = true;
-            digitalWrite (ledPin, LOW);
+        while (monkey_already_in == true) {
+          while (reward_state == false) {
+
+            //unsigned int distance = sonar.ping_cm(); // proximity sensor
+            distance = sonar.ping_cm(); // proximity sensor
+            val1 = digitalRead(inPin1);   // current state of pushbotton 1
+            val2 = digitalRead(inPin2);   // current state of pushbotton 2
+            val3 = digitalRead(inPin3);   // current state of pushbotton 3
+
+            // now the monkey is in the right position, and can start to press the buttons
+            Serial.println("stato 1");
+            // if button 1 is pressed, reward is delivered
+            if (val1 == HIGH && val2 == LOW && val3 == LOW) {
+              Serial.println("button 1 pressed");
+              digitalWrite (ledPin, HIGH);
+              delay (reward_duration);
+              reward_state = true;
+
+              break;
+
+            }
+
+            //if button 2 is pressed, reward is delivered
+            else if (val1 == LOW && val2 == HIGH && val3 == LOW) {
+              Serial.println("button 2 pressed");
+              digitalWrite (ledPin, HIGH);
+              delay (reward_duration);
+              reward_state = true;
+
+              break;
+
+            }
+            // if button 3 is pressed, reward is delivered
+            else if (val1 == LOW && val2 == LOW && val3 == HIGH) {
+              Serial.println("button 3 pressed");
+              digitalWrite (ledPin, HIGH);
+              delay (reward_duration);
+              reward_state = true;
+
+              break;
+            } else if (distance > proximity_threshold) {
+              delay (50);
+              Serial.println("coming back2");
+
+
+              break;
+            }
+
 
           }
 
-          // if button 2 is pressed, reward is delivered
-          else if (val1 == LOW && val2 == HIGH && val3 == LOW) {
-            Serial.print("button 2 pressed");
-            digitalWrite (ledPin, HIGH);
-            delay (reward_duration);
-            reward_state = true;
-            digitalWrite (ledPin, LOW);
+          if (distance > proximity_threshold) {
+            delay (50);
+            Serial.println("coming back");
+            analogWrite(enA, 100);
+            digitalWrite(IN1, HIGH);
+            digitalWrite(IN2, LOW);
+            delay (distance_counter);
 
+            monkey_already_in = false;
+            break;
           }
-          // if button 3 is pressed, reward is delivered
-          else if (val1 == LOW && val2 == LOW && val3 == HIGH) {
-            Serial.print("button 3 pressed");
-            digitalWrite (ledPin, HIGH);
-            delay (reward_duration);
-
-            reward_state = true;
-            digitalWrite (ledPin, LOW);
-
-          }
+          // idle flag
           reward_state = false;
+          delay(ITI);
+          digitalWrite (ledPin, LOW);
+
 
         }
 
-
-      } else if ((distance > proximity_threshold)) {
-        Serial.print("coming back to the start position with the door");
+      } else if (distance > proximity_threshold) {
+        Serial.println("stato 3");
         delay (50);
-        analogWrite(enA, 200);
+        analogWrite(enA, 100);
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, HIGH);
         delay (distance_counter);
-        int distance_counter = 0;
+
         break;
       }
 
@@ -517,21 +557,26 @@ void loop() {
     }
 
     else {
+      analogWrite(enA, 100);
+      digitalWrite(IN1, LOW);
+      digitalWrite(IN2, HIGH);
+      delay (distance_counter);
       analogWrite(enA, 0);
       digitalWrite(IN1, LOW);
       digitalWrite(IN2, LOW);
+      Serial.println("stato 4");
 
-      // inter trial interval
-      delay(ITI);
 
-      // idle flag
-      reward_state = false;
-      int var = 0;
-      lcd.clear();
     }
   }
   // idle flag
   reward_state = false;
   int var = 0;
   lcd.clear();
+  // inter trial interval
+  delay(ITI);
+  monkey_already_in = false;
+  int distance_counter = 0;
+
+
 }
