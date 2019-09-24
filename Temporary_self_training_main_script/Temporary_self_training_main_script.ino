@@ -453,7 +453,7 @@ void loop() {
       if (digitalRead(reedPin) == HIGH && distance <= proximity_threshold) {
         Serial.println("if the monkey is in the right position and the reed is not reached, keep moving the door");
         Serial.println (digitalRead(reedPin));
-        distance_counter++;
+        distance_counter = distance_counter+200;
         analogWrite(enA, 100);
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, HIGH);
@@ -514,10 +514,10 @@ void loop() {
               break;
             } else if (distance > proximity_threshold) {
               delay (50);
-              Serial.println("coming back2");
-
-
-              break;
+            Serial.println("coming back2");
+            
+           
+            break;
             }
 
 
@@ -530,7 +530,7 @@ void loop() {
             digitalWrite(IN1, HIGH);
             digitalWrite(IN2, LOW);
             delay (distance_counter);
-
+           
             monkey_already_in = false;
             break;
           }
@@ -538,7 +538,7 @@ void loop() {
           reward_state = false;
           delay(ITI);
           digitalWrite (ledPin, LOW);
-
+          
 
         }
 
@@ -546,10 +546,10 @@ void loop() {
         Serial.println("stato 3");
         delay (50);
         analogWrite(enA, 100);
-        digitalWrite(IN1, LOW);
-        digitalWrite(IN2, HIGH);
+        digitalWrite(IN1, HIGH);
+        digitalWrite(IN2, LOW);
         delay (distance_counter);
-
+        
         break;
       }
 
@@ -557,10 +557,6 @@ void loop() {
     }
 
     else {
-      analogWrite(enA, 100);
-      digitalWrite(IN1, LOW);
-      digitalWrite(IN2, HIGH);
-      delay (distance_counter);
       analogWrite(enA, 0);
       digitalWrite(IN1, LOW);
       digitalWrite(IN2, LOW);
@@ -576,7 +572,7 @@ void loop() {
   // inter trial interval
   delay(ITI);
   monkey_already_in = false;
-  int distance_counter = 0;
+   int distance_counter = 0;
 
 
 }
