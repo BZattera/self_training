@@ -9,13 +9,6 @@
 #include <SPI.h>
 #include <SD.h>
 
-// set up variables using the SD utility library functions:
-Sd2Card card;
-SdVolume volume;
-SdFile root;
-
-
-
 // initialize the library with the numbers of the interface pins
 LiquidCrystal lcd(32, 30, 40, 38, 36, 34);
 
@@ -26,6 +19,16 @@ int ledPin = 13; // choose the pin for the syringe pump
 int inPin1 = 2; // choose the pin for the button 1
 int inPin2 = 3; // choose the pin for the button 2
 int inPin3 = 4; // choose the pin for the button 3
+
+
+
+// previous pin state for monkey button
+byte oldSwitchState_pin1 = LOW;  // assume switch open because of pull-up resistor
+
+byte oldSwitchState_pin2 = LOW;  // assume switch open because of pull-up resistor
+
+byte oldSwitchState_pin3 = LOW;  // assume switch open because of pull-up resistor
+
 
 
 int start_button = 23; // green button
@@ -101,6 +104,8 @@ int counter2 = 500;
 int aState2;
 int aLastState2;
 
+//check for the previous distance
+int previous_distance;
 
 // variables for the rotatory encoder  4
 int counter3 = 200;
@@ -121,7 +126,10 @@ bool door_closure;
 byte oldSwitchState_door = HIGH;  // assume switch open because of pull-up resistor
 
 bool button_state = false; // flag for the start
-File myFile;
+
+// SD card
+const int chipSelect = 53;
+
 
 // distance counter
 int distance_counter;
@@ -129,11 +137,12 @@ int distance_counter;
 // flag for the monkey presence
 int monkey_already_in = false;
 
+// control the presence of the monkey in the current position
+
+
 
 // definint setup
 void setup() {
-
-  SD.begin();
 
   // rotary encoder 1
   pinMode (outputA, INPUT);
@@ -172,13 +181,28 @@ void setup() {
   // set up the LCD's number of columns and rows:
   lcd.begin(16, 2);
   Serial.begin(9600);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
+
+
+
+
+  // see if the card is present and can be initialized:
+  if (!SD.begin(chipSelect)) {
+
+    // don't do anything more:
+    while (1);
+  }
+
+
 }
 
 
 
 
 void loop() {
-  myFile = SD.open("test.txt");
+
   // DEFINITION OF VARIABLES SECTION
 
 
@@ -196,7 +220,7 @@ void loop() {
 
     // Choosing if we want to deliver the reward on the proxomity
     if (switchState == HIGH) {
-      oldSwitchState_door =  switchState;
+      oldSwitchState_reward =  switchState;
       reward_on_proximity = !reward_on_proximity;   // toggle the variable
       if (reward_on_proximity == 0) {
         lcd.clear();
@@ -212,7 +236,6 @@ void loop() {
       }
 
       lcd.print(rew_string);
-
     }
 
 
@@ -334,15 +357,28 @@ void loop() {
 
 
     if (start == HIGH) {
-      myFile.println (rew_string);
-      myFile.println (monkey);
-      myFile.println (back_door);
-      myFile.println (ITI);
-      myFile.println (proximity_threshold);
-      myFile.println (reward_duration);
-      myFile.println (prox_time);
-      myFile.close();
+
       button_state = true;
+
+      File dataFile = SD.open(monkey + ".csv", FILE_WRITE);
+
+
+      if (dataFile) {
+        dataFile.println("New day of training");
+        dataFile.println(rew_string);
+        dataFile.println(back_door);
+        dataFile.println(ITI);
+        dataFile.println(proximity_threshold);
+        dataFile.println(reward_duration);
+        dataFile.println(prox_time);
+        dataFile.close();
+
+
+      }
+      // if the file isn't open, pop up an error:
+      else {
+        lcd.print("SD card ERROR");
+      }
       break;
     }
 
@@ -359,14 +395,17 @@ void loop() {
 
   ///////////////////////////////////////////////////////////////////////////////// HERE THE CODE FOR THE EXPERIMENT BEGINS ///////////////////////////////////////////////////////////////////////////////////////////
   // code for the experiment
-  lcd.clear();
-  lcd.setCursor(0, 1);
-  lcd.print("Waiting for ");
-  lcd.print(monkey);
-  delay(1000);
-  lcd.clear();
+
   while (door_closure_flag == false) {
+    lcd.clear();
+    lcd.setCursor(0, 1);
+    lcd.print("Waiting for ");
+    lcd.print(monkey);
+    delay(1000);
+    lcd.clear();
     while (reward_state == false) {
+      File dataFile = SD.open(monkey + ".csv", FILE_WRITE);
+
       unsigned int distance = sonar.ping_cm(); // proximity sensor
       val1 = digitalRead(inPin1);   // current state of pushbotton 1
       val2 = digitalRead(inPin2);   // current state of pushbotton 2
@@ -374,55 +413,97 @@ void loop() {
 
       // if button 1 is pressed, reward is delivered
       if (val1 == HIGH && val2 == LOW && val3 == LOW) {
-        Serial.println("button1");
-        Serial.println(digitalRead(inPin1));
-        digitalWrite (ledPin, HIGH);
-        delay (reward_duration);
-        reward_state = true;
 
-        break;
+        if (val1 != oldSwitchState_pin1) {
+          oldSwitchState_pin1 =  val1;
+          dataFile.println("button1");
+          dataFile.close();
+          digitalWrite (ledPin, HIGH);
+          analogWrite(12, 50); // playing a sound to strength the association
+          delay (reward_duration);
+          reward_state = true;
+
+          break;
+        } else {
+
+          break;
+        }
       }
 
       // if button 2 is pressed, reward is delivered
       else if (val1 == LOW && val2 == HIGH && val3 == LOW) {
-        Serial.println("button2");
-        digitalWrite (ledPin, HIGH);
-        delay (reward_duration);
-        reward_state = true;
 
-        break;
+        if (val2 != oldSwitchState_pin2) {
+          oldSwitchState_pin2 =  val2;
+          dataFile.println("button2");
+          dataFile.close();
+          digitalWrite (ledPin, HIGH);
+          analogWrite(12, 50); // playing a sound to strength the association
+          delay (reward_duration);
+          reward_state = true;
+
+          break;
+        } else {
+
+          break;
+        }
       }
       // if button 3 is pressed, reward is delivered
       else if (val1 == LOW && val2 == LOW && val3 == HIGH) {
-        Serial.println("button3");
-        digitalWrite (ledPin, HIGH);
-        delay (reward_duration);
+        if (val3 != oldSwitchState_pin3) {
+          oldSwitchState_pin3 =  val3;
 
-        reward_state = true;
+          dataFile.println("button3");
+          dataFile.close();
+          digitalWrite (ledPin, HIGH);
+          analogWrite(12, 50); // playing a sound to strength the association
+          delay (reward_duration);
+          reward_state = true;
+          break;
+        } else {
 
-        break;
+
+          break;
+        }
       }
 
       // if the monkey is near AND WE WANT TO DELIVER REWARD ON THE PROXIMITY (JUST FOR THE FIRST TIMES, reward is delivered)
-      else if (distance <= proximity_threshold && distance > 0 && val1 == LOW && val2 == LOW && val3 == LOW && reward_on_proximity_flag == true) {
+      else if (distance <= proximity_threshold && distance > 0 && val1 == LOW && val2 == LOW && val3 == LOW && reward_on_proximity_flag == true && previous_distance <= proximity_threshold) {
+        
         for (int var = 0; var < 10; var++) {
+          
           delay(prox_time / 10);
           if (distance > proximity_threshold)
             digitalWrite (ledPin, LOW);
 
         }
         digitalWrite (ledPin, HIGH);
+                     
         delay (reward_duration);
+        dataFile.println("reward for proximity");
+        
+        dataFile.println(int (distance));
+        dataFile.close();
         reward_state = true;
         break;
       }
       else {
         digitalWrite (ledPin, LOW);
+        digitalWrite(12, LOW);
+        previous_distance = distance;
 
       }
+
     }
 
+    oldSwitchState_pin1 = digitalRead(inPin1);   // current state of pushbotton 1
+    oldSwitchState_pin2 = digitalRead(inPin2);   // current state of pushbotton 2
+    oldSwitchState_pin3 = digitalRead(inPin3);   // current state of pushbotton 3
+
+
+
     digitalWrite (ledPin, LOW);
+    digitalWrite(12, LOW);
     // inter trial interval
     delay(ITI);
 
@@ -433,13 +514,14 @@ void loop() {
 
   }
   while (door_closure_flag == true) {
+    File dataFile = SD.open(monkey + ".csv", FILE_WRITE);
     unsigned int distance = sonar.ping_cm(); // proximity sensor
     val1 = digitalRead(inPin1);   // current state of pushbotton 1
     val2 = digitalRead(inPin2);   // current state of pushbotton 2
     val3 = digitalRead(inPin3);   // current state of pushbotton 3
 
     if (distance <= proximity_threshold && distance > 0 ) {
-      Serial.println("you entered the section where the monkey is near to the proximity sensor");
+
       while (var < 10) {
         var++;
         if (distance > proximity_threshold) {
@@ -449,11 +531,11 @@ void loop() {
         delay(prox_time / 10);
       }
 
-      Serial.println("the monkey is in the right position from a sufficient amount of time: let's start with the door closure");
+
       if (digitalRead(reedPin) == HIGH && distance <= proximity_threshold) {
-        Serial.println("if the monkey is in the right position and the reed is not reached, keep moving the door");
-        Serial.println (digitalRead(reedPin));
-        distance_counter = distance_counter+200;
+
+        distance_counter = distance_counter + 200;
+
         analogWrite(enA, 100);
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, HIGH);
@@ -463,18 +545,23 @@ void loop() {
       else if (digitalRead(reedPin) == LOW && (distance <= proximity_threshold)) {
         // the monkey is still here when the motor has reached the reed module, so I stop the motor and
         // give the reward
+        dataFile.println("roller shutter closed");
+        dataFile.close();
         analogWrite(enA, 0);
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, LOW);
+        analogWrite(12, 50); // playing a sound to strength the association
         digitalWrite (ledPin, HIGH);
+        
         delay(reward_duration);
         digitalWrite (ledPin, LOW);
+        digitalWrite (12, LOW); // stopping the piezo
         monkey_already_in = true;
 
 
         while (monkey_already_in == true) {
           while (reward_state == false) {
-
+            File dataFile = SD.open(monkey + ".csv", FILE_WRITE);
             //unsigned int distance = sonar.ping_cm(); // proximity sensor
             distance = sonar.ping_cm(); // proximity sensor
             val1 = digitalRead(inPin1);   // current state of pushbotton 1
@@ -482,11 +569,14 @@ void loop() {
             val3 = digitalRead(inPin3);   // current state of pushbotton 3
 
             // now the monkey is in the right position, and can start to press the buttons
-            Serial.println("stato 1");
+
             // if button 1 is pressed, reward is delivered
             if (val1 == HIGH && val2 == LOW && val3 == LOW) {
-              Serial.println("button 1 pressed");
+              
+              analogWrite(12, 50); // playing a sound to strength the association
               digitalWrite (ledPin, HIGH);
+              dataFile.println("button1");
+              dataFile.close();
               delay (reward_duration);
               reward_state = true;
 
@@ -496,8 +586,10 @@ void loop() {
 
             //if button 2 is pressed, reward is delivered
             else if (val1 == LOW && val2 == HIGH && val3 == LOW) {
-              Serial.println("button 2 pressed");
+              analogWrite(12, 50); // playing a sound to strength the association
               digitalWrite (ledPin, HIGH);
+              dataFile.println("button2");
+              dataFile.close();
               delay (reward_duration);
               reward_state = true;
 
@@ -506,18 +598,20 @@ void loop() {
             }
             // if button 3 is pressed, reward is delivered
             else if (val1 == LOW && val2 == LOW && val3 == HIGH) {
-              Serial.println("button 3 pressed");
+              analogWrite(12, 50); // playing a sound to strength the association
               digitalWrite (ledPin, HIGH);
+              dataFile.println("button3");
+              dataFile.close();
               delay (reward_duration);
               reward_state = true;
 
               break;
             } else if (distance > proximity_threshold) {
               delay (50);
-            Serial.println("coming back2");
-            
-           
-            break;
+
+
+
+              break;
             }
 
 
@@ -525,31 +619,32 @@ void loop() {
 
           if (distance > proximity_threshold) {
             delay (50);
-            Serial.println("coming back");
+
             analogWrite(enA, 100);
             digitalWrite(IN1, HIGH);
             digitalWrite(IN2, LOW);
             delay (distance_counter);
-           
+
             monkey_already_in = false;
             break;
           }
           // idle flag
           reward_state = false;
           delay(ITI);
+          digitalWrite (12, LOW); // stopping the piezo
           digitalWrite (ledPin, LOW);
-          
+
 
         }
 
       } else if (distance > proximity_threshold) {
-        Serial.println("stato 3");
+
         delay (50);
         analogWrite(enA, 100);
         digitalWrite(IN1, HIGH);
         digitalWrite(IN2, LOW);
         delay (distance_counter);
-        
+
         break;
       }
 
@@ -560,10 +655,11 @@ void loop() {
       analogWrite(enA, 0);
       digitalWrite(IN1, LOW);
       digitalWrite(IN2, LOW);
-      Serial.println("stato 4");
+
 
 
     }
+    dataFile.close();
   }
   // idle flag
   reward_state = false;
@@ -572,7 +668,7 @@ void loop() {
   // inter trial interval
   delay(ITI);
   monkey_already_in = false;
-   int distance_counter = 0;
+  int distance_counter = 0;
 
 
 }
