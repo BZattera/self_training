@@ -1,3 +1,4 @@
+
 // importing libraries
 #include <NewPing.h>
 
@@ -114,13 +115,13 @@ int aLastState2;
 int previous_distance;
 
 // variables for the rotatory encoder  4
-int counter3 = 200;
+int counter3 = 5000;
 int aState3;
 int aLastState3;
 
 // loop for the distance
 int var = 0;
-int prox_time = 0;
+int closure_time = 0;
 
 // button flags
 bool reward_on_proximity_flag = false;
@@ -364,9 +365,9 @@ void loop() {
     if (aState3 != aLastState3) {
       // If the outputB state is different to the outputA2 state, that means the encoder is rotating clockwise
       if (digitalRead(outputB3) != aState3) {
-        counter3 = counter3 + 100;
+        counter3 = counter3 + 500;
       } else {
-        counter3 = counter3 - 100;
+        counter3 = counter3 - 500;
       }
       lcd.clear();
       lcd.print("Prox. time: ");
@@ -374,7 +375,7 @@ void loop() {
 
     }
     aLastState3 = aState3; // Updates the previous state of the outputA with the current state
-    prox_time = counter3;
+    closure_time = counter3;
 
 
 
@@ -393,7 +394,7 @@ void loop() {
         dataFile.println(ITI);
         dataFile.println(proximity_threshold);
         dataFile.println(reward_duration);
-        dataFile.println(prox_time);
+        dataFile.println(closure_time);
         dataFile.close();
 
 
@@ -498,7 +499,7 @@ void loop() {
 
         for (int var = 0; var < 10; var++) {
 
-          delay(prox_time / 10);
+          delay(closure_time / 10);
           if (distance > proximity_threshold)
             analogWrite(speed_reward, 0);
           digitalWrite(pin1_rew, LOW);
@@ -580,7 +581,7 @@ void loop() {
       }
       dataFile.println("door closed");
       dataFile.close();
-      delay(5000);
+      delay(closure_time);
 
       while (reward_state == false) {
         unsigned int distance = sonar.ping_cm(); // proximity sensor
