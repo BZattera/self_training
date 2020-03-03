@@ -47,7 +47,7 @@ int start_button = 23; // green button
 int switch_Pin_yellow = 27; // yellow button
 int switch_Pin_black = 29; // black button
 
-const int switchPin = 25; // white button
+const int switchPin = 7; // white button
 byte oldSwitchState = HIGH;  // assume switch open because of pull-up resistor
 bool toggle;
 
@@ -153,7 +153,7 @@ int t6;
 int t7;
 int t8;
 
-int motor_activity = 20 ;
+int motor_activity = 25 ;
 
 // flag for the monkey presence
 int monkey_already_in = false;
@@ -459,12 +459,12 @@ void loop() {
       val2 = digitalRead(inPin2);   // current state of pushbotton 2
       val3 = digitalRead(inPin3);   // current state of pushbotton 3
 
-      // if button 1 is pressed, reward is delivered
-      if (val1 == HIGH && val2 == LOW && val3 == LOW) {
+      // if one of the button is pushed and changed the previous state, deliver reward   
+      
 
-        if (val1 != oldSwitchState_pin1) {
-          oldSwitchState_pin1 =  val1;
-          dataFile.println("button1");
+      if (val1 == HIGH || val2 == HIGH || val3 == HIGH){
+        if (val1 != oldSwitchState_pin1 || val2 != oldSwitchState_pin2 || val3 != oldSwitchState_pin3) {
+          dataFile.println("button");
           dataFile.close();
           analogWrite(speed_reward, 255);
           digitalWrite(pin1_rew, HIGH);
@@ -472,52 +472,12 @@ void loop() {
           analogWrite(12, 50); // playing a sound to strength the association
           delay (reward_duration);
           reward_state = true;
-
           break;
         } else {
+
 
           break;
         }
-      }
-
-      // if button 2 is pressed, reward is delivered
-      else if (val1 == LOW && val2 == HIGH && val3 == LOW) {
-
-        if (val2 != oldSwitchState_pin2) {
-          oldSwitchState_pin2 =  val2;
-          dataFile.println("button2");
-          dataFile.close();
-          analogWrite(speed_reward, 255);
-          digitalWrite(pin1_rew, HIGH);
-          digitalWrite(pin2_rew, LOW);
-          analogWrite(12, 50); // playing a sound to strength the association
-          delay (reward_duration);
-          reward_state = true;
-
-          break;
-        } else {
-
-          break;
-        }
-      }
-      // if button 3 is pressed, reward is delivered
-      else if (val1 == LOW && val2 == LOW && val3 == HIGH) {
-        if (val3 != oldSwitchState_pin3) {
-          oldSwitchState_pin3 =  val3;
-
-          dataFile.println("button3");
-          dataFile.close();
-          analogWrite(speed_reward, 255);
-          digitalWrite(pin1_rew, HIGH);
-          digitalWrite(pin2_rew, LOW);
-          analogWrite(12, 50); // playing a sound to strength the association
-          delay (reward_duration);
-          reward_state = true;
-          break;
-        } else {
-
-
-          break;
         }
       }
 
@@ -712,7 +672,7 @@ void loop() {
       int t6 = t.sec;
 
       // opening the door
-      while (t8 < (motor_activity+ 2)) {
+      while (t8 < (motor_activity)) {
         DS3231_get(&t);
         int t7 = t.sec;
         int t8 = abs(t7 - t6);
@@ -793,7 +753,7 @@ void loop() {
         }
         // idleing reward variables
         reward_state = false;
-        if (t8 > (motor_activity + 2)) {
+        if (t8 > (motor_activity)) {
           break;
         }
 
@@ -824,7 +784,7 @@ void loop() {
     int t7 = 0;
     int t8 = 0;
     
-    int motor_activity = 20;
+    int motor_activity = 25;
     
     lcd.clear();
     // inter trial interval

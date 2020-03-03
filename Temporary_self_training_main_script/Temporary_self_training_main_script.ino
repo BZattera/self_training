@@ -20,6 +20,7 @@ int inPin1 = 2; // choose the pin for the button 1
 int inPin2 = 3; // choose the pin for the button 2
 int inPin3 = 4; // choose the pin for the button 3
 
+int drain_button = 22; // select pin for the drain
 
 
 // previous pin state for monkey button
@@ -67,6 +68,8 @@ bool toggle;
 // reed module
 #define reedPin 10
 
+#define reedPin_starting_pos 44
+
 // DC motor
 #define enA 7
 #define IN1 5
@@ -100,7 +103,7 @@ int aState1;
 int aLastState1;
 
 // variables for the rotatory encoder  3 ---> reward duration
-int counter2 = 500;
+int counter2 = 0;
 int aState2;
 int aLastState2;
 
@@ -143,6 +146,9 @@ int monkey_already_in = false;
 
 // definint setup
 void setup() {
+  // drain button
+  pinMode(drain_button, INPUT);
+
 
   // rotary encoder 1
   pinMode (outputA, INPUT);
@@ -174,6 +180,7 @@ void setup() {
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode( reedPin, INPUT);
+  pinMode (reedPin_starting_pos, INPUT);
 
   pinMode(switch_Pin_black, INPUT_PULLUP);
   pinMode(switch_Pin_yellow, INPUT_PULLUP);
@@ -184,8 +191,6 @@ void setup() {
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
-
-
 
 
   // see if the card is present and can be initialized:
@@ -207,6 +212,15 @@ void loop() {
 
 
   while (button_state != true) {
+    // enable drain if button is pushed
+    int drain_state = digitalRead(drain_button);  // reading the state of the drain button
+    if (drain_state == HIGH) {
+      digitalWrite (ledPin, HIGH);
+    } else {
+      digitalWrite (ledPin, LOW);
+    }
+
+
     int start = digitalRead(start_button);  // reading the state of the green button
     byte switchState = digitalRead (switchPin); // reading the state of the white button
     byte switchState_yellow = digitalRead (switch_Pin_yellow); // reading the state of the yellow button
@@ -324,9 +338,9 @@ void loop() {
     if (aState2 != aLastState2) {
       // If the outputB state is different to the outputA2 state, that means the encoder is rotating clockwise
       if (digitalRead(outputB2) != aState2) {
-        counter2 = counter2 + 100;
+        counter2 = counter2 + 5;
       } else {
-        counter2 = counter2 - 100;
+        counter2 = counter2 - 5;
       }
       lcd.clear();
       lcd.print("Reward : ");
@@ -386,22 +400,19 @@ void loop() {
 
 
 
-  lcd.clear();
-  lcd.setCursor(0, 1);
-  lcd.print("Waiting for ");
-  lcd.print(monkey);
-  delay(1000);
-  lcd.clear();
-
   ///////////////////////////////////////////////////////////////////////////////// HERE THE CODE FOR THE EXPERIMENT BEGINS ///////////////////////////////////////////////////////////////////////////////////////////
   // code for the experiment
 
   while (door_closure_flag == false) {
+    oldSwitchState_pin1 = digitalRead(inPin1);   // current state of pushbotton 1
+    oldSwitchState_pin2 = digitalRead(inPin2);   // current state of pushbotton 2
+    oldSwitchState_pin3 = digitalRead(inPin3);   // current state of pushbotton 3
+
     lcd.clear();
     lcd.setCursor(0, 1);
     lcd.print("Waiting for ");
     lcd.print(monkey);
-    delay(1000);
+    //delay(1000);
     lcd.clear();
     while (reward_state == false) {
       File dataFile = SD.open(monkey + ".csv", FILE_WRITE);
@@ -468,20 +479,21 @@ void loop() {
       }
 
       // if the monkey is near AND WE WANT TO DELIVER REWARD ON THE PROXIMITY (JUST FOR THE FIRST TIMES, reward is delivered)
-      else if (distance <= proximity_threshold && distance > 0 && val1 == LOW && val2 == LOW && val3 == LOW && reward_on_proximity_flag == true && previous_distance <= proximity_threshold) {
-        
+      else if (distance <= proximity_threshold && distance > 0 && val1 == LOW && val2 == LOW && val3 == LOW && reward_on_proximity_flag == true && previous_distance > proximity_threshold) {
+
         for (int var = 0; var < 10; var++) {
-          
+
           delay(prox_time / 10);
           if (distance > proximity_threshold)
             digitalWrite (ledPin, LOW);
 
         }
         digitalWrite (ledPin, HIGH);
-                     
+
         delay (reward_duration);
+        digitalWrite (ledPin, LOW);
         dataFile.println("reward for proximity");
-        
+        previous_distance = distance;
         dataFile.println(int (distance));
         dataFile.close();
         reward_state = true;
@@ -496,9 +508,6 @@ void loop() {
 
     }
 
-    oldSwitchState_pin1 = digitalRead(inPin1);   // current state of pushbotton 1
-    oldSwitchState_pin2 = digitalRead(inPin2);   // current state of pushbotton 2
-    oldSwitchState_pin3 = digitalRead(inPin3);   // current state of pushbotton 3
 
 
 
@@ -550,12 +559,12 @@ void loop() {
         analogWrite(enA, 0);
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, LOW);
-        analogWrite(12, 50); // playing a sound to strength the association
+
         digitalWrite (ledPin, HIGH);
-        
+
         delay(reward_duration);
         digitalWrite (ledPin, LOW);
-        digitalWrite (12, LOW); // stopping the piezo
+
         monkey_already_in = true;
 
 
@@ -572,7 +581,7 @@ void loop() {
 
             // if button 1 is pressed, reward is delivered
             if (val1 == HIGH && val2 == LOW && val3 == LOW) {
-              
+
               analogWrite(12, 50); // playing a sound to strength the association
               digitalWrite (ledPin, HIGH);
               dataFile.println("button1");
@@ -619,12 +628,13 @@ void loop() {
 
           if (distance > proximity_threshold) {
             delay (50);
+            int reed2_state = digitalRead(reedPin_starting_pos);
+            while (reed2_state == LOW) {
+              analogWrite(enA, 100);
+              digitalWrite(IN1, HIGH);
+              digitalWrite(IN2, LOW);
 
-            analogWrite(enA, 100);
-            digitalWrite(IN1, HIGH);
-            digitalWrite(IN2, LOW);
-            delay (distance_counter);
-
+            }
             monkey_already_in = false;
             break;
           }

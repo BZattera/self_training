@@ -4,13 +4,6 @@
 // include the library code:
 #include <LiquidCrystal.h>
 
-// include clock library
-#include <Wire.h>
-#include <ds3231.h>
-struct ts t;
-
-
-
 //include libraries for the SD module
 #include <SPI.h>
 #include <SD.h>
@@ -75,7 +68,10 @@ bool toggle;
 #define ECHO_PIN 9
 #define MAX_DISTANCE 2000
 
+// reed module
+#define reedPin 10
 
+#define reedPin_starting_pos 44
 
 // DC motor
 #define enA 19
@@ -118,15 +114,13 @@ int aLastState2;
 int previous_distance;
 
 // variables for the rotatory encoder  4
-int counter3 = 0;
+int counter3 = 200;
 int aState3;
 int aLastState3;
 
 // loop for the distance
 int var = 0;
-int closure_time = 0;
-int total_push = 0;
-int var_closure = 0;
+int prox_time = 0;
 
 // button flags
 bool reward_on_proximity_flag = false;
@@ -142,18 +136,7 @@ bool button_state = false; // flag for the start
 // SD card
 const int chipSelect = 53;
 
-// define clock variables
-int t0;
-int t1;
-int t2;
-int t3;
-int t4;
-int t5;
-int t6;
-int t7;
-int t8;
 
-int motor_activity = 20 ;
 
 // flag for the monkey presence
 int monkey_already_in = false;
@@ -164,18 +147,6 @@ int monkey_already_in = false;
 
 // definint setup
 void setup() {
-
-  // clock
-  Wire.begin();
-  DS3231_init(DS3231_INTCN);
-  t.hour = 12;
-  t.min = 30;
-  t.sec = 0;
-
-
-  DS3231_set(t);
-
-
   // drain button
   pinMode(drain_button, INPUT);
 
@@ -213,7 +184,8 @@ void setup() {
   pinMode(enA, OUTPUT);
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
- 
+  pinMode( reedPin, INPUT);
+  pinMode (reedPin_starting_pos, INPUT);
 
   pinMode(switch_Pin_black, INPUT_PULLUP);
   pinMode(switch_Pin_yellow, INPUT_PULLUP);
@@ -325,7 +297,7 @@ void loop() {
       } else if (door_closure == 1) {
         lcd.clear();
         lcd.setCursor(0, 1);
-        back_door = String("Door activated");
+        back_door = String("Door actived");
         door_closure_flag = true;
       }
 
@@ -392,17 +364,17 @@ void loop() {
     if (aState3 != aLastState3) {
       // If the outputB state is different to the outputA2 state, that means the encoder is rotating clockwise
       if (digitalRead(outputB3) != aState3) {
-        counter3 = counter3 + 1;
+        counter3 = counter3 + 100;
       } else {
-        counter3 = counter3 - 1;
+        counter3 = counter3 - 100;
       }
       lcd.clear();
-      lcd.print("Closure time: ");
+      lcd.print("Prox. time: ");
       lcd.print(counter3);
 
     }
     aLastState3 = aState3; // Updates the previous state of the outputA with the current state
-    closure_time = counter3;
+    prox_time = counter3;
 
 
 
@@ -421,7 +393,7 @@ void loop() {
         dataFile.println(ITI);
         dataFile.println(proximity_threshold);
         dataFile.println(reward_duration);
-        dataFile.println(closure_time);
+        dataFile.println(prox_time);
         dataFile.close();
 
 
@@ -526,7 +498,7 @@ void loop() {
 
         for (int var = 0; var < 10; var++) {
 
-          delay(closure_time / 10);
+          delay(prox_time / 10);
           if (distance > proximity_threshold)
             analogWrite(speed_reward, 0);
           digitalWrite(pin1_rew, LOW);
@@ -577,259 +549,207 @@ void loop() {
   }
 
   while (door_closure_flag == true) {
-
     lcd.clear();
     File dataFile = SD.open(monkey + ".csv", FILE_WRITE);
-    
     unsigned int distance = sonar.ping_cm(); // proximity sensorc
     oldSwitchState_pin1 = digitalRead(inPin1);   // current state of pushbotton 1
     oldSwitchState_pin2 = digitalRead(inPin2);   // current state of pushbotton 2
     oldSwitchState_pin3 = digitalRead(inPin3);   // current state of pushbotton 3
 
-    val1 = digitalRead(inPin1);   // current state of pushbotton 1
-    val2 = digitalRead(inPin2);   // current state of pushbotton 2
-    val3 = digitalRead(inPin3);   // current state of pushbotton 3
 
-    if (val1 == HIGH || val2 == HIGH || val3 == HIGH && distance <= proximity_threshold && distance > 0) {
-      DS3231_get(&t);
-      int t0 = t.sec;
-      Serial.print(t2);
-      
-      while (t2 < motor_activity) {
-        DS3231_get(&t);
-        int t1 = t.sec;
-        int t2 = abs(t1 - t0);
-        Serial.print(t2);
-        analogWrite(enA, 255);
+    if (distance <= proximity_threshold && distance > 0 ) {
+
+      while (var < 10) {
+        var++;
+        if (distance > proximity_threshold) {
+          return;
+        }
+
+        delay(prox_time / 10);
+      }
+
+
+      if (distance <= proximity_threshold && distance > 0 ) {
+
+
+
+        analogWrite(enA, 100);
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, HIGH);
-        analogWrite(speed_reward, 80);
+        dataFile.println("door closed");
+        dataFile.close();
+        analogWrite(speed_reward, 255);
         digitalWrite(pin1_rew, HIGH);
         digitalWrite(pin2_rew, LOW);
-        if (t2 > motor_activity) {
-          
-          break;
-        }
+        delay(6000);
 
-      }
-      analogWrite(enA, 0);
-      digitalWrite(IN1, LOW);
-      digitalWrite(IN2, LOW);
-      analogWrite(speed_reward, 0);
-      digitalWrite(pin1_rew, LOW);
-      digitalWrite(pin2_rew, LOW);
-      unsigned int distance = sonar.ping_cm(); // proximity sensor
-      dataFile.println("door closed");
-      
-      dataFile.println(distance);
-      dataFile.close();
 
-      DS3231_get(&t);
-      int t3 = t.sec;
+        analogWrite(enA, 0);
+        digitalWrite(IN1, LOW);
+        digitalWrite(IN2, LOW);
 
-      while (t5 < closure_time) {
-        
-        DS3231_get(&t);
-        int t4 = t.sec;
-        int t5 = abs(t4 - t3);
-        while (reward_state == false) {
-          
-          unsigned int distance = sonar.ping_cm(); // proximity sensor
-          val1 = digitalRead(inPin1);   // current state of pushbotton 1
-          val2 = digitalRead(inPin2);   // current state of pushbotton 2
-          val3 = digitalRead(inPin3);   // current state of pushbotton 3
+        analogWrite(speed_reward, 0);
+        digitalWrite(pin1_rew, LOW);
+        digitalWrite(pin2_rew, LOW);
 
-          // if button 1 is pressed, reward is delivered
-          if (val1 == HIGH && val2 == LOW && val3 == LOW) {
+        monkey_already_in = true;
 
-            
-            dataFile.println("button1");
-            dataFile.close();
-            analogWrite(speed_reward, 255);
-            digitalWrite(pin1_rew, HIGH);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 50); // playing a sound to strength the association
-            delay (reward_duration);
-            analogWrite(speed_reward, 0);
-            digitalWrite(pin1_rew, LOW);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 0);
-            reward_state = true;
 
-            break;
+        while (monkey_already_in == true) {
+          while (reward_state == false) {
+            File dataFile = SD.open(monkey + ".csv", FILE_WRITE);
+
+            distance = sonar.ping_cm(); // proximity sensor
+            val1 = digitalRead(inPin1);   // current state of pushbotton 1
+            val2 = digitalRead(inPin2);   // current state of pushbotton 2
+            val3 = digitalRead(inPin3);   // current state of pushbotton 3
+
+            // now the monkey is in the right position, and can start to press the buttons
+
+            // if button 1 is pressed, reward is delivered
+
+            // if button 1 is pressed, reward is delivered
+            if (val1 == HIGH && val2 == LOW && val3 == LOW) {
+
+              if (val1 != oldSwitchState_pin1) {
+                oldSwitchState_pin1 =  val1;
+                dataFile.println("button1");
+                dataFile.close();
+                analogWrite(speed_reward, 255);
+                digitalWrite(pin1_rew, HIGH);
+                digitalWrite(pin2_rew, LOW);
+                analogWrite(12, 50); // playing a sound to strength the association
+                delay (reward_duration);
+                analogWrite(speed_reward, 0);
+                digitalWrite(pin1_rew, LOW);
+                digitalWrite(pin2_rew, LOW);
+                analogWrite(12, LOW);
+                reward_state = true;
+
+                break;
+              } else {
+
+                break;
+              }
+            }
+
+            // if button 2 is pressed, reward is delivered
+            else if (val1 == LOW && val2 == HIGH && val3 == LOW) {
+
+              if (val2 != oldSwitchState_pin2) {
+                oldSwitchState_pin2 =  val2;
+                dataFile.println("button2");
+                dataFile.close();
+                analogWrite(speed_reward, 255);
+                digitalWrite(pin1_rew, HIGH);
+                digitalWrite(pin2_rew, LOW);
+                analogWrite(12, 50); // playing a sound to strength the association
+                delay (reward_duration);
+                analogWrite(speed_reward, 0);
+                digitalWrite(pin1_rew, LOW);
+                digitalWrite(pin2_rew, LOW);
+                analogWrite(12, LOW);
+                reward_state = true;
+
+                break;
+              } else {
+
+                break;
+              }
+            }
+            // if button 3 is pressed, reward is delivered
+            else if (val1 == LOW && val2 == LOW && val3 == HIGH) {
+              if (val3 != oldSwitchState_pin3) {
+                oldSwitchState_pin3 =  val3;
+
+                dataFile.println("button3");
+                dataFile.close();
+                analogWrite(speed_reward, 255);
+                digitalWrite(pin1_rew, HIGH);
+                digitalWrite(pin2_rew, LOW);
+                analogWrite(12, 50); // playing a sound to strength the association
+                delay (reward_duration);
+                analogWrite(speed_reward, 0);
+                digitalWrite(pin1_rew, LOW);
+                digitalWrite(pin2_rew, LOW);
+                analogWrite(12, LOW);
+                reward_state = true;
+                break;
+              } else {
+
+
+                break;
+              }
+            }
+            else if (distance > proximity_threshold) {
+              monkey_already_in = false;
+              reward_state = false;
+
+
+              break;
+            }
+
 
           }
 
-          // if button 2 is pressed, reward is delivered
-          else if (val1 == LOW && val2 == HIGH && val3 == LOW) {
-
-            dataFile.println("button2");
+          if (distance > proximity_threshold ) {
+            delay (50);
+            monkey_already_in = false;
+            reward_state = false;
+            analogWrite(enA, 100);
+            digitalWrite(IN1, HIGH);
+            digitalWrite(IN2, LOW);
+            dataFile.println("door opened");
             dataFile.close();
-            analogWrite(speed_reward, 255);
-            digitalWrite(pin1_rew, HIGH);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 50); // playing a sound to strength the association
-            delay (reward_duration);
-            analogWrite(speed_reward, 0);
-            digitalWrite(pin1_rew, LOW);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 0);
-            reward_state = true;
+            delay(7000);
+            analogWrite(enA, 0);
+            digitalWrite(IN1, LOW);
+            digitalWrite(IN2, LOW);
 
-            break;
-
-          }
-          // if button 3 is pressed, reward is delivered
-          else if (val1 == LOW && val2 == LOW && val3 == HIGH) {
-
-
-            dataFile.println("button3");
-            dataFile.close();
-            analogWrite(speed_reward, 255);
-            digitalWrite(pin1_rew, HIGH);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 50); // playing a sound to strength the association
-            delay (reward_duration);
-            analogWrite(speed_reward, 0);
-            digitalWrite(pin1_rew, LOW);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 0);
-            reward_state = true;
-            break;
-
-          } else {
             break;
           }
 
+
+          // idle flag
+          reward_state = false;
+          delay(ITI);
+
         }
-        // idleing reward variables
-        reward_state = false;
-        if (t5 > closure_time) {
-          break;
-        }
-      }
-      DS3231_get(&t);
-      int t6 = t.sec;
 
-      // opening the door
-      while (t8 < (motor_activity+ 2)) {
-        DS3231_get(&t);
-        int t7 = t.sec;
-        int t8 = abs(t7 - t6);
+      } else if (distance > proximity_threshold) {
 
-
-        analogWrite(enA, 255);
+        delay (50);
+        analogWrite(enA, 100);
         digitalWrite(IN1, HIGH);
         digitalWrite(IN2, LOW);
-        while (reward_state == false) {
-          
-          unsigned int distance = sonar.ping_cm(); // proximity sensor
-          val1 = digitalRead(inPin1);   // current state of pushbotton 1
-          val2 = digitalRead(inPin2);   // current state of pushbotton 2
-          val3 = digitalRead(inPin3);   // current state of pushbotton 3
-
-          // if button 1 is pressed, reward is delivered
-          if (val1 == HIGH && val2 == LOW && val3 == LOW) {
-
-            
-            dataFile.println("button1");
-            dataFile.close();
-            analogWrite(speed_reward, 255);
-            digitalWrite(pin1_rew, HIGH);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 50); // playing a sound to strength the association
-            delay (reward_duration);
-            analogWrite(speed_reward, 0);
-            digitalWrite(pin1_rew, LOW);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 0);
-            reward_state = true;
-
-            break;
-
-          }
-
-          // if button 2 is pressed, reward is delivered
-          else if (val1 == LOW && val2 == HIGH && val3 == LOW) {
-
-            dataFile.println("button2");
-            dataFile.close();
-            analogWrite(speed_reward, 255);
-            digitalWrite(pin1_rew, HIGH);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 50); // playing a sound to strength the association
-            delay (reward_duration);
-            analogWrite(speed_reward, 0);
-            digitalWrite(pin1_rew, LOW);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 0);
-            reward_state = true;
-
-            break;
-
-          }
-          // if button 3 is pressed, reward is delivered
-          else if (val1 == LOW && val2 == LOW && val3 == HIGH) {
-
-
-            dataFile.println("button3");
-            dataFile.close();
-            analogWrite(speed_reward, 255);
-            digitalWrite(pin1_rew, HIGH);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 50); // playing a sound to strength the association
-            delay (reward_duration);
-            analogWrite(speed_reward, 0);
-            digitalWrite(pin1_rew, LOW);
-            digitalWrite(pin2_rew, LOW);
-            analogWrite(12, 0);
-            reward_state = true;
-            break;
-
-          } else {
-            break;
-          }
-
-        }
-        // idleing reward variables
-        reward_state = false;
-        if (t8 > (motor_activity + 2)) {
-          break;
-        }
+        dataFile.println("door opened");
+        dataFile.close();
+        delay(7000);
+        analogWrite(enA, 0);
+        digitalWrite(IN1, LOW);
+        digitalWrite(IN2, LOW);
 
       }
 
-      dataFile.println("door opened");
-      dataFile.close();
-      analogWrite(enA, 255);
-      digitalWrite(IN1, LOW);
-      digitalWrite(IN2, LOW);
-      
 
     }
 
+    else {
+      analogWrite(enA, 0);
+      digitalWrite(IN1, LOW);
+      digitalWrite(IN2, LOW);
 
 
 
+    }
     dataFile.close();
     // idle flag
     reward_state = false;
-    int t0 = 0;
-    int t1 = 0;
-    int t2 = 0;
-    int t3 = 0;
-    int t4 = 0;
-    int t5 = 0;
-    int t6 = 0;
-    int t7 = 0;
-    int t8 = 0;
-    
-    int motor_activity = 20;
-    
+    int var = 0;
     lcd.clear();
     // inter trial interval
     delay(ITI);
-
+    monkey_already_in = false;
   }
 
 

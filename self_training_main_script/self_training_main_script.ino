@@ -1,4 +1,3 @@
-
 // importing libraries
 #include <NewPing.h>
 
@@ -75,9 +74,9 @@ bool toggle;
 #define reedPin_starting_pos 44
 
 // DC motor
-#define enA 7
-#define IN1 5
-#define IN2 6
+#define enA 19
+#define IN1 18
+#define IN2 17
 
 // NewPing setup of pins and maximum distance
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
